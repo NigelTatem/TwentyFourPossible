@@ -1,0 +1,231 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import InspirationalQuote from './InspirationalQuote';
+import DancingBear from './DancingBear';
+
+interface CountdownTimerProps {
+  goal: string;
+  onComplete: () => void;
+  onMilestone: (milestone: number) => void;
+  onFocusModeChange?: (focusMode: boolean) => void;
+}
+
+interface TimeLeft {
+  hours: number;
+  minutes: number;
+  seconds: number;
+  total: number;
+}
+
+export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusModeChange }: CountdownTimerProps) {
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>({ hours: 24, minutes: 0, seconds: 0, total: 24 * 60 * 60 * 1000 });
+  const [focusMode, setFocusMode] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [milestonesHit, setMilestonesHit] = useState<Set<number>>(new Set());
+  const [challengesCompleted, setChallengesCompleted] = useState<number>(0);
+
+  // Notify parent when focus mode changes
+  useEffect(() => {
+    onFocusModeChange?.(focusMode);
+  }, [focusMode, onFocusModeChange]);
+
+  // Load challenges completed on mount
+  useEffect(() => {
+    const loadChallengesCompleted = async () => {
+      const savedChallenges = localStorage.getItem('make24matter_challenges_completed');
+      if (savedChallenges) {
+        setChallengesCompleted(parseInt(savedChallenges));
+      }
+    };
+    loadChallengesCompleted();
+  }, []);
+
+  useEffect(() => {
+    const startTime = localStorage.getItem('make24matter_start_time');
+    if (!startTime) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const start = parseInt(startTime);
+      const elapsed = now - start;
+      const totalDuration = 24 * 60 * 60 * 1000; // 24 hours in ms
+      const remaining = Math.max(0, totalDuration - elapsed);
+
+      if (remaining === 0) {
+        onComplete();
+        clearInterval(interval);
+        return;
+      }
+
+      const hours = Math.floor(remaining / (1000 * 60 * 60));
+      const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+
+      setTimeLeft({ hours, minutes, seconds, total: remaining });
+
+      // Check for milestones (18h, 12h, 6h remaining)
+      const hoursRemaining = remaining / (1000 * 60 * 60);
+      [18, 12, 6].forEach(milestone => {
+        if (hoursRemaining <= milestone && hoursRemaining > milestone - 0.1 && !milestonesHit.has(milestone)) {
+          setMilestonesHit(prev => new Set([...prev, milestone]));
+          onMilestone(milestone);
+        }
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [onComplete, onMilestone, milestonesHit]);
+
+  const progress = ((24 * 60 * 60 * 1000 - timeLeft.total) / (24 * 60 * 60 * 1000)) * 100;
+
+  if (focusMode) {
+    return (
+      <div 
+        className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 animate-fade-in cursor-pointer"
+        onClick={() => setShowControls(!showControls)}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setFocusMode(false);
+          }}
+          className={`absolute top-4 right-4 text-gray-400 hover:text-white text-sm transition-all duration-500 hover:scale-110 z-50 bg-black/20 px-3 py-2 rounded-lg backdrop-blur-sm ${
+            showControls ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          ✕ Exit Focus Mode
+        </button>
+        
+        <div className="text-center animate-slide-up">
+          <div className="text-8xl md:text-9xl font-mono font-bold mb-8 animate-pulse-gentle">
+            <span className="inline-block animate-flip-number">{String(timeLeft.hours).padStart(2, '0')}</span>:
+            <span className="inline-block animate-flip-number" style={{animationDelay: '0.1s'}}>{String(timeLeft.minutes).padStart(2, '0')}</span>:
+            <span className="inline-block animate-flip-number" style={{animationDelay: '0.2s'}}>{String(timeLeft.seconds).padStart(2, '0')}</span>
+          </div>
+          <p className="text-xl text-gray-300 max-w-md animate-fade-in-delayed">
+            {goal}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4 animate-gradient-x">
+      <div className="max-w-4xl mx-auto animate-fade-in-up">
+        {/* Header */}
+        <div className="text-center mb-8 pt-8 animate-slide-down">
+          <h1 className="text-4xl font-bold text-white mb-2 animate-glow">Make24Matter</h1>
+          <p className="text-blue-200 animate-fade-in-delayed">Your 24-hour challenge is active</p>
+        </div>
+
+        {/* Main Timer Card */}
+        <div className="bg-white rounded-2xl shadow-2xl p-8 mb-6 transform hover:scale-[1.02] transition-all duration-300 animate-slide-up">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">🎯 Your Goal</h2>
+            <p className="text-gray-600 text-lg leading-relaxed max-w-2xl mx-auto">
+              {goal}
+            </p>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mb-8">
+            <div className="flex justify-between text-sm text-gray-500 mb-2">
+              <span>Progress</span>
+              <span>{Math.round(progress)}% Complete</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-3 rounded-full transition-all duration-1000 animate-shimmer relative"
+                style={{ width: `${progress}%` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-slide-shine"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Timer Display */}
+          <div className="text-center mb-8">
+            <div className="text-6xl md:text-7xl font-mono font-bold text-gray-800 mb-4 animate-pulse-gentle">
+              <span className="inline-block transition-transform duration-300 hover:scale-110 animate-flip-number">
+                {String(timeLeft.hours).padStart(2, '0')}
+              </span>
+              <span className="animate-blink">:</span>
+              <span className="inline-block transition-transform duration-300 hover:scale-110 animate-flip-number" style={{animationDelay: '0.1s'}}>
+                {String(timeLeft.minutes).padStart(2, '0')}
+              </span>
+              <span className="animate-blink" style={{animationDelay: '0.5s'}}>:</span>
+              <span className="inline-block transition-transform duration-300 hover:scale-110 animate-flip-number" style={{animationDelay: '0.2s'}}>
+                {String(timeLeft.seconds).padStart(2, '0')}
+              </span>
+            </div>
+            <p className="text-gray-500">
+              {timeLeft.hours > 0 ? `${timeLeft.hours} hours` : ''} 
+              {timeLeft.hours > 0 && timeLeft.minutes > 0 ? ', ' : ''}
+              {timeLeft.minutes > 0 ? `${timeLeft.minutes} minutes` : ''} 
+              {(timeLeft.hours > 0 || timeLeft.minutes > 0) && timeLeft.seconds > 0 ? ', ' : ''}
+              {timeLeft.seconds > 0 ? `${timeLeft.seconds} seconds` : ''} remaining
+            </p>
+          </div>
+
+          {/* Controls */}
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => setFocusMode(true)}
+              className="bg-gray-800 text-white px-6 py-3 rounded-lg hover:bg-gray-900 transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 group"
+            >
+              <span className="group-hover:animate-pulse">🎯</span> Focus Mode
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('make24matter_goal');
+                localStorage.removeItem('make24matter_start_time');
+                window.location.reload();
+              }}
+              className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 group"
+            >
+              <span className="group-hover:animate-pulse">🛑</span> End Challenge
+            </button>
+          </div>
+        </div>
+
+        {/* Dancing Bear */}
+        <div className="mb-6">
+          <DancingBear bearsCount={challengesCompleted + 1} />
+        </div>
+
+        {/* Inspirational Quote */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-6">
+          <InspirationalQuote className="text-white" autoRotate={true} rotateInterval={20000} />
+        </div>
+
+        {/* Milestones */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
+          <h3 className="text-white text-lg font-semibold mb-4">Milestones</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[18, 12, 6].map(milestone => (
+              <div 
+                key={milestone}
+                className={`p-4 rounded-lg text-center ${
+                  milestonesHit.has(milestone) 
+                    ? 'bg-green-500/20 border border-green-400' 
+                    : timeLeft.total <= milestone * 60 * 60 * 1000
+                    ? 'bg-yellow-500/20 border border-yellow-400'
+                    : 'bg-white/10 border border-white/20'
+                }`}
+              >
+                <div className="text-2xl mb-2">
+                  {milestonesHit.has(milestone) ? '✅' : timeLeft.total <= milestone * 60 * 60 * 1000 ? '⏰' : '⏳'}
+                </div>
+                <p className="text-white text-sm">
+                  {milestone}h Mark
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+} 

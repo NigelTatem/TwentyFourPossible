@@ -1,103 +1,175 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import GoalInput from '@/components/GoalInput';
+import CountdownTimer from '@/components/CountdownTimer';
+import MilestoneNudge from '@/components/MilestoneNudge';
+import ProofScreen from '@/components/ProofScreen';
+import MemoryBinder from '@/components/MemoryBinder';
+import { DatabaseService } from '@/lib/database';
+
+type AppState = 'goal-input' | 'timer-active' | 'challenge-complete';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [appState, setAppState] = useState<AppState>('goal-input');
+  const [currentGoal, setCurrentGoal] = useState<string>('');
+  const [currentChallengeId, setCurrentChallengeId] = useState<string>('');
+  const [showMilestone, setShowMilestone] = useState<number | null>(null);
+  const [showMemoryBinder, setShowMemoryBinder] = useState<boolean>(false);
+  const [challengesCompleted, setChallengesCompleted] = useState<number>(0);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Check for existing challenge on mount
+  useEffect(() => {
+    const initializeApp = async () => {
+      // Load user profile for challenges completed
+      const profile = await DatabaseService.getUserProfile();
+      if (profile) {
+        setChallengesCompleted(profile.streak);
+      }
+
+      // Check for active challenge in localStorage (for persistence)
+      const savedGoal = localStorage.getItem('make24matter_goal');
+      const savedStartTime = localStorage.getItem('make24matter_start_time');
+      const savedChallengeId = localStorage.getItem('make24matter_challenge_id');
+
+      if (savedGoal && savedStartTime && savedChallengeId) {
+        const startTime = parseInt(savedStartTime);
+        const now = Date.now();
+        const elapsed = now - startTime;
+        const duration = 24 * 60 * 60 * 1000; // 24 hours
+
+        setCurrentGoal(savedGoal);
+        setCurrentChallengeId(savedChallengeId);
+
+        if (elapsed >= duration) {
+          // Challenge is complete
+          setAppState('challenge-complete');
+        } else {
+          // Challenge is still active
+          setAppState('timer-active');
+        }
+      }
+    };
+
+    initializeApp();
+  }, []);
+
+  const handleGoalStart = async (goal: string) => {
+    // Create challenge in database
+    const challengeId = await DatabaseService.createChallenge(goal);
+    if (challengeId) {
+      setCurrentGoal(goal);
+      setCurrentChallengeId(challengeId);
+      setAppState('timer-active');
+      
+      // Also save to localStorage for persistence
+      localStorage.setItem('make24matter_challenge_id', challengeId);
+    }
+  };
+
+  const handleTimerComplete = () => {
+    setAppState('challenge-complete');
+  };
+
+  const handleMilestone = async (milestone: number) => {
+    setShowMilestone(milestone);
+  };
+
+  const handleMilestoneSubmit = async (milestone: number, mood: string, reflection?: string) => {
+    if (currentChallengeId) {
+      await DatabaseService.createCheckIn(currentChallengeId, milestone, mood, reflection);
+    }
+  };
+
+  const handleChallengeComplete = async (rating: number, outcome: string, reflection: string) => {
+    // Complete challenge in database
+    if (currentChallengeId) {
+      await DatabaseService.completeChallenge(currentChallengeId, rating, outcome, reflection);
+    }
+
+    // Clear localStorage
+    localStorage.removeItem('make24matter_goal');
+    localStorage.removeItem('make24matter_start_time');
+    localStorage.removeItem('make24matter_challenge_id');
+
+    // Reset to start a new challenge
+    setAppState('goal-input');
+    setCurrentGoal('');
+    setCurrentChallengeId('');
+    setShowMilestone(null);
+    
+    // Update challenges completed display
+    const profile = await DatabaseService.getUserProfile();
+    if (profile) {
+      setChallengesCompleted(profile.streak);
+    }
+  };
+
+  return (
+    <div>
+      {/* Challenge Counter - Always visible when challenges > 0 and not in focus mode */}
+      {challengesCompleted > 0 && appState !== 'challenge-complete' && !isFocusMode && (
+        <div className="fixed top-4 left-4 bg-gradient-to-r from-green-400 to-blue-400 text-green-900 px-4 py-2 rounded-full text-sm font-medium z-40 shadow-lg animate-pulse-slow transform hover:scale-110 transition-transform duration-200">
+          <span className="animate-bounce-subtle">🏆</span> {challengesCompleted} challenge{challengesCompleted !== 1 ? 's' : ''} completed!
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      )}
+
+      {/* Memory Binder Button - Only show when not in timer or focus mode */}
+      {appState !== 'timer-active' && !isFocusMode && (
+        <button
+          onClick={() => setShowMemoryBinder(true)}
+          className="fixed top-4 right-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium z-40 shadow-lg transform hover:scale-110 transition-all duration-200 group"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <span className="group-hover:animate-pulse">📚</span> Memory Binder
+        </button>
+      )}
+
+      {/* Memory Binder Button for Timer Screen - Different position, hidden in focus mode */}
+      {appState === 'timer-active' && !isFocusMode && (
+        <button
+          onClick={() => setShowMemoryBinder(true)}
+          className="fixed bottom-4 right-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium z-40 shadow-lg transform hover:scale-110 transition-all duration-200 group"
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <span className="group-hover:animate-pulse">📚</span> Memory
+        </button>
+      )}
+
+      {/* Main App States */}
+      {appState === 'goal-input' && (
+        <GoalInput onGoalStart={handleGoalStart} />
+      )}
+
+      {appState === 'timer-active' && (
+        <CountdownTimer 
+          goal={currentGoal}
+          onComplete={handleTimerComplete}
+          onMilestone={handleMilestone}
+          onFocusModeChange={setIsFocusMode}
+        />
+      )}
+
+      {appState === 'challenge-complete' && (
+        <ProofScreen 
+          goal={currentGoal}
+          onComplete={handleChallengeComplete}
+        />
+      )}
+
+      {/* Milestone Nudge Overlay */}
+      {showMilestone && (
+        <MilestoneNudge
+          milestone={showMilestone}
+          goal={currentGoal}
+          onClose={() => setShowMilestone(null)}
+          onSubmit={handleMilestoneSubmit}
+        />
+      )}
+
+      {/* Memory Binder Overlay */}
+      {showMemoryBinder && (
+        <MemoryBinder onClose={() => setShowMemoryBinder(false)} />
+      )}
     </div>
   );
 }
