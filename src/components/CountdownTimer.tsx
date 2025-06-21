@@ -4,6 +4,16 @@ import { useState, useEffect } from 'react';
 import InspirationalQuote from './InspirationalQuote';
 import DancingBear from './DancingBear';
 
+// DEVELOPMENT CONFIGURATION - Change this for testing!
+// Set to a smaller number for testing (e.g., 0.1 for 6 minutes, 0.5 for 30 minutes)
+const TIMER_DURATION_HOURS = 24; // 24 hours for all challenges
+
+// Calculate durations in milliseconds
+const TIMER_DURATION_MS = TIMER_DURATION_HOURS * 60 * 60 * 1000;
+const MILESTONE_HOURS = TIMER_DURATION_HOURS > 1 
+  ? [TIMER_DURATION_HOURS * 0.75, TIMER_DURATION_HOURS * 0.5, TIMER_DURATION_HOURS * 0.25] // 75%, 50%, 25% of duration
+  : [TIMER_DURATION_HOURS * 0.8, TIMER_DURATION_HOURS * 0.5, TIMER_DURATION_HOURS * 0.2]; // Adjusted for very short durations
+
 interface CountdownTimerProps {
   goal: string;
   onComplete: () => void;
@@ -19,7 +29,12 @@ interface TimeLeft {
 }
 
 export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusModeChange }: CountdownTimerProps) {
-  const [timeLeft, setTimeLeft] = useState<TimeLeft>({ hours: 24, minutes: 0, seconds: 0, total: 24 * 60 * 60 * 1000 });
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>({ 
+    hours: Math.floor(TIMER_DURATION_HOURS), 
+    minutes: Math.floor((TIMER_DURATION_HOURS % 1) * 60), 
+    seconds: 0, 
+    total: TIMER_DURATION_MS 
+  });
   const [focusMode, setFocusMode] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [milestonesHit, setMilestonesHit] = useState<Set<number>>(new Set());
@@ -30,14 +45,19 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
     onFocusModeChange?.(focusMode);
   }, [focusMode, onFocusModeChange]);
 
-  // Load challenges completed on mount
+  // Load challenges completed and milestone state on mount
   useEffect(() => {
-    const loadChallengesCompleted = async () => {
-      const savedChallenges = localStorage.getItem('make24matter_challenges_completed');
-      if (savedChallenges) {
-        setChallengesCompleted(parseInt(savedChallenges));
-      }
+    const loadChallengesCompleted = () => {
+      const completions = JSON.parse(localStorage.getItem('make24matter_completions') || '[]');
+      setChallengesCompleted(completions.length);
     };
+    
+    // Load milestone state
+    const savedMilestones = localStorage.getItem('make24matter_milestones_hit');
+    if (savedMilestones) {
+      setMilestonesHit(new Set(JSON.parse(savedMilestones)));
+    }
+    
     loadChallengesCompleted();
   }, []);
 
@@ -49,8 +69,7 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
       const now = Date.now();
       const start = parseInt(startTime);
       const elapsed = now - start;
-      const totalDuration = 24 * 60 * 60 * 1000; // 24 hours in ms
-      const remaining = Math.max(0, totalDuration - elapsed);
+      const remaining = Math.max(0, TIMER_DURATION_MS - elapsed);
 
       if (remaining === 0) {
         onComplete();
@@ -64,11 +83,16 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
 
       setTimeLeft({ hours, minutes, seconds, total: remaining });
 
-      // Check for milestones (18h, 12h, 6h remaining)
+      // Check for milestones
       const hoursRemaining = remaining / (1000 * 60 * 60);
-      [18, 12, 6].forEach(milestone => {
-        if (hoursRemaining <= milestone && hoursRemaining > milestone - 0.1 && !milestonesHit.has(milestone)) {
-          setMilestonesHit(prev => new Set([...prev, milestone]));
+      MILESTONE_HOURS.forEach(milestone => {
+        if (hoursRemaining <= milestone && hoursRemaining > milestone - 0.01 && !milestonesHit.has(milestone)) {
+          setMilestonesHit(prev => {
+            const newSet = new Set([...prev, milestone]);
+            // Save milestone state to localStorage
+            localStorage.setItem('make24matter_milestones_hit', JSON.stringify([...newSet]));
+            return newSet;
+          });
           onMilestone(milestone);
         }
       });
@@ -77,7 +101,7 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
     return () => clearInterval(interval);
   }, [onComplete, onMilestone, milestonesHit]);
 
-  const progress = ((24 * 60 * 60 * 1000 - timeLeft.total) / (24 * 60 * 60 * 1000)) * 100;
+  const progress = ((TIMER_DURATION_MS - timeLeft.total) / TIMER_DURATION_MS) * 100;
 
   if (focusMode) {
     return (
@@ -135,12 +159,12 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
               <span>Progress</span>
               <span>{Math.round(progress)}% Complete</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
               <div 
-                className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-3 rounded-full transition-all duration-1000 animate-shimmer relative"
-                style={{ width: `${progress}%` }}
+                className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 h-4 rounded-full transition-all duration-1000 relative shadow-lg animate-pulse"
+                style={{ width: `${Math.max(progress, 5)}%` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-slide-shine"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-white/40 to-white/20 animate-pulse"></div>
               </div>
             </div>
           </div>
@@ -179,8 +203,11 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
             </button>
             <button
               onClick={() => {
+                // Just clear everything - no tracking of incomplete challenges
                 localStorage.removeItem('make24matter_goal');
                 localStorage.removeItem('make24matter_start_time');
+                localStorage.removeItem('make24matter_challenge_id');
+                localStorage.removeItem('make24matter_milestones_hit');
                 window.location.reload();
               }}
               className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 group"
@@ -202,24 +229,35 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
 
         {/* Milestones */}
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
-          <h3 className="text-white text-lg font-semibold mb-4">Milestones</h3>
+          <h3 className="text-white text-lg font-semibold mb-2">Milestones</h3>
+          <p className="text-white/60 text-xs mb-4">
+            Remaining: {(timeLeft.total / (1000 * 60 * 60)).toFixed(2)}h | 
+            Progress: {Math.round(progress)}% | 
+            Targets: {MILESTONE_HOURS.map(h => h.toFixed(2)).join(', ')}h
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[18, 12, 6].map(milestone => (
+            {MILESTONE_HOURS.map(milestone => (
               <div 
                 key={milestone}
-                className={`p-4 rounded-lg text-center ${
+                className={`p-4 rounded-lg text-center transition-all duration-300 ${
                   milestonesHit.has(milestone) 
-                    ? 'bg-green-500/20 border border-green-400' 
-                    : timeLeft.total <= milestone * 60 * 60 * 1000
-                    ? 'bg-yellow-500/20 border border-yellow-400'
-                    : 'bg-white/10 border border-white/20'
+                    ? 'bg-green-500/30 border-2 border-green-400 shadow-lg' 
+                    : (timeLeft.total / (1000 * 60 * 60)) <= (milestone + 0.01) && !milestonesHit.has(milestone)
+                    ? 'bg-orange-500/30 border-2 border-orange-400 shadow-lg'
+                    : 'bg-white/20 border-2 border-white/30'
                 }`}
               >
                 <div className="text-2xl mb-2">
-                  {milestonesHit.has(milestone) ? '✅' : timeLeft.total <= milestone * 60 * 60 * 1000 ? '⏰' : '⏳'}
+                  {milestonesHit.has(milestone) ? '✅' : (timeLeft.total / (1000 * 60 * 60)) <= (milestone + 0.01) && !milestonesHit.has(milestone) ? '⏰' : '⏳'}
                 </div>
-                <p className="text-white text-sm">
-                  {milestone}h Mark
+                <p className={`text-sm font-semibold ${
+                  milestonesHit.has(milestone) 
+                    ? 'text-green-100' 
+                    : (timeLeft.total / (1000 * 60 * 60)) <= (milestone + 0.01) && !milestonesHit.has(milestone)
+                    ? 'text-orange-100'
+                    : 'text-white'
+                }`}>
+                  {milestone < 1 ? `${Math.round(milestone * 60)}min` : `${milestone.toFixed(1)}h`} Mark
                 </p>
               </div>
             ))}

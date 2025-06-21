@@ -14,23 +14,32 @@ export default function MilestoneNudge({ milestone, onClose, onSubmit, goal }: M
   const [mood, setMood] = useState('');
 
   const getMilestoneMessage = (hours: number) => {
-    switch (hours) {
-      case 18:
+    // Determine which milestone this is based on typical challenge patterns
+    const TIMER_DURATION_HOURS = 24;
+    const MILESTONE_HOURS = TIMER_DURATION_HOURS > 1 
+      ? [TIMER_DURATION_HOURS * 0.75, TIMER_DURATION_HOURS * 0.5, TIMER_DURATION_HOURS * 0.25]
+      : [TIMER_DURATION_HOURS * 0.8, TIMER_DURATION_HOURS * 0.5, TIMER_DURATION_HOURS * 0.2];
+    
+    // Find which milestone this is (first, second, or third)
+    const milestoneIndex = MILESTONE_HOURS.findIndex(m => Math.abs(m - hours) < 0.01);
+    
+    switch (milestoneIndex) {
+      case 0: // First milestone (75-80% of time left)
         return {
-          title: "🌅 6 Hours In!",
+          title: "🌅 Early Check-in!",
           message: "You've started strong! How are you feeling about your progress so far?",
           tips: ["Take a moment to celebrate what you've accomplished", "Adjust your approach if needed", "Stay hydrated and take breaks"]
         };
-      case 12:
+      case 1: // Second milestone (50% of time left - halfway)
         return {
           title: "🔥 Halfway There!",
-          message: "12 hours down, 12 to go! You're at the halfway point - this is where champions are made.",
+          message: "You're at the halfway point - this is where champions are made!",
           tips: ["Push through any mid-point fatigue", "Review your goal and refocus", "You've got this momentum - keep it going!"]
         };
-      case 6:
+      case 2: // Third milestone (20-25% of time left)
         return {
           title: "⚡ Final Sprint!",
-          message: "Only 6 hours left! This is your final push - make every moment count!",
+          message: "This is your final push - make every moment count!",
           tips: ["Focus on the essentials", "Push through fatigue - you're almost there", "Visualize crossing the finish line"]
         };
       default:
@@ -73,38 +82,38 @@ export default function MilestoneNudge({ milestone, onClose, onSubmit, goal }: M
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 transform animate-bounce-in hover:scale-[1.02] transition-transform duration-300">
-        <div className="text-center mb-6">
-          <div className="text-4xl mb-2 animate-bounce-gentle">{milestone === 18 ? '🌅' : milestone === 12 ? '🔥' : '⚡'}</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2 animate-slide-down">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 transform animate-bounce-in hover:scale-[1.02] transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-2 animate-bounce-gentle">{milestone === 18 ? '🌅' : milestone === 12 ? '🔥' : '⚡'}</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2 animate-slide-down">
             {milestoneData.title}
           </h2>
-          <p className="text-gray-600 animate-fade-in-delayed">
+          <p className="text-sm text-gray-600 animate-fade-in-delayed">
             {milestoneData.message}
           </p>
         </div>
 
         {/* Goal Reminder */}
-        <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <p className="text-sm text-gray-500 mb-1">Your Goal:</p>
-          <p className="text-gray-700 font-medium">{goal}</p>
+        <div className="bg-blue-50 rounded-lg p-3 mb-4">
+          <p className="text-xs text-gray-500 mb-1">Your Goal:</p>
+          <p className="text-gray-700 font-medium text-sm">{goal}</p>
         </div>
 
         {/* Mood Check */}
-        <div className="mb-6">
-          <p className="text-sm font-medium text-gray-700 mb-3">How are you feeling?</p>
+        <div className="mb-4">
+          <p className="text-sm font-medium text-gray-700 mb-2">How are you feeling?</p>
           <div className="grid grid-cols-3 gap-2">
             {moodOptions.map((option) => (
               <button
                 key={option.emoji}
                 onClick={() => setMood(option.emoji)}
-                className={`p-3 rounded-lg text-center transition-all duration-200 transform hover:scale-110 active:scale-95 ${
+                className={`p-2 rounded-lg text-center transition-all duration-200 transform hover:scale-110 active:scale-95 ${
                   mood === option.emoji
                     ? 'bg-blue-500 text-white shadow-lg animate-pulse-gentle'
                     : 'bg-gray-100 hover:bg-gray-200 hover:shadow-md'
                 }`}
               >
-                <div className="text-2xl mb-1">{option.emoji}</div>
+                <div className="text-xl mb-1">{option.emoji}</div>
                 <div className="text-xs">{option.label}</div>
               </button>
             ))}
@@ -112,47 +121,34 @@ export default function MilestoneNudge({ milestone, onClose, onSubmit, goal }: M
         </div>
 
         {/* Quick Reflection */}
-        <div className="mb-6">
+        <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Quick reflection (optional):
           </label>
           <textarea
             value={reflection}
             onChange={(e) => setReflection(e.target.value)}
-            placeholder="What's working? What needs to change? Any breakthroughs?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none h-20 text-sm"
-            maxLength={200}
+            placeholder="What's working? Any breakthroughs?"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none h-16 text-sm text-gray-900 placeholder-gray-500 bg-white"
+            maxLength={150}
           />
           <div className="text-right text-xs text-gray-500 mt-1">
-            {reflection.length}/200
+            {reflection.length}/150
           </div>
         </div>
 
-        {/* Tips */}
-        <div className="bg-yellow-50 rounded-lg p-4 mb-6">
-          <p className="text-sm font-medium text-gray-700 mb-2">💡 Tips for this stage:</p>
-          <ul className="text-sm text-gray-600 space-y-1">
-            {milestoneData.tips.map((tip, index) => (
-              <li key={index} className="flex items-start">
-                <span className="text-yellow-500 mr-2">•</span>
-                {tip}
-              </li>
-            ))}
-          </ul>
-        </div>
-
         {/* Actions */}
-        <div className="flex space-x-3">
+        <div className="flex space-x-2">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 transform hover:scale-105 active:scale-95"
+            className="flex-1 px-3 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 text-sm"
           >
             Skip
           </button>
           <button
             onClick={handleSubmit}
             disabled={!mood}
-            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95"
+            className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm"
           >
             Continue
           </button>

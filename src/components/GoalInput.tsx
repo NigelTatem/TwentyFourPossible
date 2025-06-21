@@ -14,10 +14,8 @@ export default function GoalInput({ onGoalStart }: GoalInputProps) {
 
   // Load challenges completed on mount
   useEffect(() => {
-    const savedChallenges = localStorage.getItem('make24matter_challenges_completed');
-    if (savedChallenges) {
-      setChallengesCompleted(parseInt(savedChallenges));
-    }
+    const completions = JSON.parse(localStorage.getItem('make24matter_completions') || '[]');
+    setChallengesCompleted(completions.length);
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
