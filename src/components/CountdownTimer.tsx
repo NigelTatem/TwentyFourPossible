@@ -39,6 +39,7 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
   const [showControls, setShowControls] = useState(true);
   const [milestonesHit, setMilestonesHit] = useState<Set<number>>(new Set());
   const [challengesCompleted, setChallengesCompleted] = useState<number>(0);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   // Notify parent when focus mode changes
   useEffect(() => {
@@ -59,6 +60,18 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
     }
     
     loadChallengesCompleted();
+  }, []);
+
+  // Add browser warning for navigation/close attempts
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'You have an active 24-hour challenge! Are you sure you want to leave? Your progress will be lost.';
+      return e.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   useEffect(() => {
@@ -202,14 +215,7 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
               <span className="group-hover:animate-pulse">🎯</span> Focus Mode
             </button>
             <button
-              onClick={() => {
-                // Just clear everything - no tracking of incomplete challenges
-                localStorage.removeItem('make24matter_goal');
-                localStorage.removeItem('make24matter_start_time');
-                localStorage.removeItem('make24matter_challenge_id');
-                localStorage.removeItem('make24matter_milestones_hit');
-                window.location.reload();
-              }}
+              onClick={() => setShowEndConfirm(true)}
               className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 group"
             >
               <span className="group-hover:animate-pulse">🛑</span> End Challenge
@@ -263,6 +269,67 @@ export default function CountdownTimer({ goal, onComplete, onMilestone, onFocusM
             ))}
           </div>
         </div>
+
+        {/* End Challenge Confirmation Dialog */}
+        {showEndConfirm && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-bounce-in">
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">⚠️</div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">End Challenge Early?</h2>
+                <p className="text-gray-600 leading-relaxed">
+                  You're doing great! If you end now, all your progress and milestone check-ins will be lost. 
+                  Only completed 24-hour challenges are saved to your memory book.
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 mb-6">
+                <h3 className="font-semibold text-gray-800 mb-2">💪 You've got this!</h3>
+                <p className="text-sm text-gray-600">
+                  Every moment you've invested matters. The hardest part is often right before the breakthrough. 
+                  Consider taking a short break instead of giving up completely.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowEndConfirm(false)}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  🚀 Keep Going - I've Got This!
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowEndConfirm(false);
+                    setFocusMode(true);
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  🎯 Continue in Focus Mode
+                </button>
+
+                <button
+                  onClick={() => {
+                    // Clear everything - no tracking of incomplete challenges
+                    localStorage.removeItem('make24matter_goal');
+                    localStorage.removeItem('make24matter_start_time');
+                    localStorage.removeItem('make24matter_challenge_id');
+                    localStorage.removeItem('make24matter_milestones_hit');
+                    window.location.reload();
+                  }}
+                  className="w-full bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition-all duration-200 transform hover:scale-105"
+                >
+                  😔 End Challenge (lose progress)
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-400 text-center mt-4">
+                Remember: Every challenge completed makes you stronger! 💪
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
