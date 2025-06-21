@@ -8,6 +8,10 @@ import ProofScreen from '@/components/ProofScreen';
 import MemoryBinder from '@/components/MemoryBinder';
 import { DatabaseService } from '@/lib/database';
 
+// DEVELOPMENT CONFIGURATION - Should match CountdownTimer.tsx
+const TIMER_DURATION_HOURS = 24; // 24 hours for all challenges
+const TIMER_DURATION_MS = TIMER_DURATION_HOURS * 60 * 60 * 1000;
+
 type AppState = 'goal-input' | 'timer-active' | 'challenge-complete';
 
 export default function Home() {
@@ -22,11 +26,9 @@ export default function Home() {
   // Check for existing challenge on mount
   useEffect(() => {
     const initializeApp = async () => {
-      // Load user profile for challenges completed
-      const profile = await DatabaseService.getUserProfile();
-      if (profile) {
-        setChallengesCompleted(profile.streak);
-      }
+      // Load completed challenges count
+      const completions = JSON.parse(localStorage.getItem('make24matter_completions') || '[]');
+      setChallengesCompleted(completions.length);
 
       // Check for active challenge in localStorage (for persistence)
       const savedGoal = localStorage.getItem('make24matter_goal');
@@ -37,12 +39,11 @@ export default function Home() {
         const startTime = parseInt(savedStartTime);
         const now = Date.now();
         const elapsed = now - startTime;
-        const duration = 24 * 60 * 60 * 1000; // 24 hours
 
         setCurrentGoal(savedGoal);
         setCurrentChallengeId(savedChallengeId);
 
-        if (elapsed >= duration) {
+        if (elapsed >= TIMER_DURATION_MS) {
           // Challenge is complete
           setAppState('challenge-complete');
         } else {
@@ -92,6 +93,7 @@ export default function Home() {
     localStorage.removeItem('make24matter_goal');
     localStorage.removeItem('make24matter_start_time');
     localStorage.removeItem('make24matter_challenge_id');
+    localStorage.removeItem('make24matter_milestones_hit');
 
     // Reset to start a new challenge
     setAppState('goal-input');
@@ -99,11 +101,9 @@ export default function Home() {
     setCurrentChallengeId('');
     setShowMilestone(null);
     
-    // Update challenges completed display
-    const profile = await DatabaseService.getUserProfile();
-    if (profile) {
-      setChallengesCompleted(profile.streak);
-    }
+    // Update challenges completed count
+    const completions = JSON.parse(localStorage.getItem('make24matter_completions') || '[]');
+    setChallengesCompleted(completions.length);
   };
 
   return (
@@ -111,28 +111,35 @@ export default function Home() {
       {/* Challenge Counter - Always visible when challenges > 0 and not in focus mode */}
       {challengesCompleted > 0 && appState !== 'challenge-complete' && !isFocusMode && (
         <div className="fixed top-4 left-4 bg-gradient-to-r from-green-400 to-blue-400 text-green-900 px-4 py-2 rounded-full text-sm font-medium z-40 shadow-lg animate-pulse-slow transform hover:scale-110 transition-transform duration-200">
-          <span className="animate-bounce-subtle">🏆</span> {challengesCompleted} challenge{challengesCompleted !== 1 ? 's' : ''} completed!
+          <span className="animate-bounce-subtle">🏆</span> {challengesCompleted} completed
         </div>
       )}
 
-      {/* Memory Binder Button - Only show when not in timer or focus mode */}
+      {/* Memory Button - Top right when not in timer mode */}
       {appState !== 'timer-active' && !isFocusMode && (
-        <button
-          onClick={() => setShowMemoryBinder(true)}
-          className="fixed top-4 right-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium z-40 shadow-lg transform hover:scale-110 transition-all duration-200 group"
-        >
-          <span className="group-hover:animate-pulse">📚</span> Memory Binder
-        </button>
+        <div className="fixed top-4 right-4 flex space-x-2 z-40">
+          <button
+            onClick={() => setShowMemoryBinder(true)}
+            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg transform hover:scale-110 transition-all duration-200 group"
+          >
+            <span className="group-hover:animate-pulse">📚</span> Memory
+          </button>
+          <div className="bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-medium shadow-lg">
+            <span>👤</span> Account Coming Soon
+          </div>
+        </div>
       )}
 
-      {/* Memory Binder Button for Timer Screen - Different position, hidden in focus mode */}
+      {/* Memory Button for Timer Screen - Different position, hidden in focus mode */}
       {appState === 'timer-active' && !isFocusMode && (
-        <button
-          onClick={() => setShowMemoryBinder(true)}
-          className="fixed bottom-4 right-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium z-40 shadow-lg transform hover:scale-110 transition-all duration-200 group"
-        >
-          <span className="group-hover:animate-pulse">📚</span> Memory
-        </button>
+        <div className="fixed bottom-4 right-4 flex space-x-2 z-40">
+          <button
+            onClick={() => setShowMemoryBinder(true)}
+            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-3 py-2 rounded-full text-sm font-medium shadow-lg transform hover:scale-110 transition-all duration-200 group"
+          >
+            <span className="group-hover:animate-pulse">📚</span>
+          </button>
+        </div>
       )}
 
       {/* Main App States */}
